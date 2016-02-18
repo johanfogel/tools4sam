@@ -11,7 +11,7 @@ use Getopt::Std;
 my %opts;
 $opts{'m'}=18;
 $opts{'x'}=30;
-
+$opts{'r'}='fasta';
 
 
 my $usage="
@@ -23,6 +23,7 @@ $0 [opts]
 -s  sample name (otherwise equals filename)
 -o  output file
 -c  assume collapsed reads from fastx_collapser
+-r  format [fasta]
 
 -f and -s can be a comma (,) separated list
 ";
@@ -58,13 +59,13 @@ for(my $i=0;$i<@files;$i++){
     #check the input
     if($file eq 'stdin'){
         print STDERR "working with STDIN\n";
-        $si=Bio::SeqIO->new(-fh=>\*STDIN ,-format=>'fasta');
+        $si=Bio::SeqIO->new(-fh=>\*STDIN ,-format=>$opts{'r'});
     }elsif(-e $file){
         print STDERR "working with $file\n";
         if($file=~/gz$/){
-            $si=Bio::SeqIO->new(-file=>"gunzip -c $file | ",-format=>'fasta');
+            $si=Bio::SeqIO->new(-file=>"gunzip -c $file | ",-format=>$opts{'r'});
         }else{
-            $si=Bio::SeqIO->new(-file=>"< $file",-format=>'fasta');
+            $si=Bio::SeqIO->new(-file=>"< $file",-format=>$opts{'r'});
         }
     }else{
         die"file $file was not found.\n";
