@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 use strict;
-use Bio::SeqIO;
+#use Bio::SeqIO;
 
 use Getopt::Std;
 
@@ -16,17 +16,18 @@ $opts{'x'}=30;
 
 my $usage="
 $0 [opts]
--f  file [required]
+-f  file [required] - for stdin
 -m	min length (18)
 -x	max length (30)
 -d  print head
 -s  sample name (otherwise equals filename)
 -o  output file
+-c	assume collapsed reads as input, will mutiply count by second part of sequence name
 
 -f and -s can be a comma (,) separated list
 ";
 
-getopts("m:x:s:f:o:hd",\%opts);
+getopts("m:x:s:f:o:hdc",\%opts);
 
 
 die $usage if $opts{'h'};
@@ -40,6 +41,7 @@ $opts{'s'}=$opts{'f'} unless $opts{'s'};
 my @files=split(/,/,$opts{'f'});
 my @samples=split(/,/,$opts{'s'});
 
+die"no files was specified\n$usage\n" if @files<1;
 my %tot_reads;
 my @length=($opts{'m'},$opts{'x'});
 
@@ -56,11 +58,11 @@ for(my $i=0;$i<@files;$i++){
     
     my $si;
     #check the input
-    if($file eq 'stdin'){
+    if($file eq '-'){
         $si=*STDIN;
     }elsif(-e $file){
         print STDERR "working with $file\n";
-
+        
         if($file=~/bam$/){
             #its a bamfile
             open(IN, "samtools view $file |");
@@ -75,8 +77,8 @@ for(my $i=0;$i<@files;$i++){
     }else{
         die"file $file was not found.\n";
     }
-
-
+    
+    
     while(<$si>){
         chomp;
         #assume input is collapsed using FASTX-Toolkit
@@ -86,6 +88,11 @@ for(my $i=0;$i<@files;$i++){
         my $count=1;
         $count=1/$1 if /NH:i:(\d+)/;
         
+        if($opts{'c'}){
+            my ($n,$m)=split(/-/,$row[0]);
+            $count*=$m;
+        }
+        
         #reverse the sequence if 2nd strand
         if($flag & 16){
             $seq=reverse($seq);
@@ -93,20 +100,20 @@ for(my $i=0;$i<@files;$i++){
         }
         my $len=length($seq);
         
-
+        
         
         $skipped->{$sample}->{'long'}+=$count and next if $len>$length[-1];
         $skipped->{$sample}->{'short'}+=$count and next if $len<$length[0];
         
         my $five=substr($seq,0,1);
         
-         #DEBUGG
+        #DEBUGG
         #print"$flag\t$count\t$five\t$len\t$sample\n$seq\n";
         #print"$_\n";
-        $data->{$len}->{$five}->{$sample}+=$count;	
-
+        $data->{$len}->{$five}->{$sample}+=$count;
+        
         $tot_reads{$sample}+=$count;
-
+        
     }
     $si->close;
 }
@@ -115,9 +122,9 @@ for(my $i=0;$i<@files;$i++){
 #report the number of skipped entries
 print STDERR "Number of skipped sequences\n";
 foreach my $sample(sort(keys(%{$skipped}))){
-	foreach my $cat(sort(keys(%{$skipped->{$sample}}))){
-		print STDERR "$sample\t$cat\t",$skipped->{$sample}->{$cat},"\n";
-	}
+    foreach my $cat(sort(keys(%{$skipped->{$sample}}))){
+        print STDERR "$sample\t$cat\t",$skipped->{$sample}->{$cat},"\n";
+    }
 }
 
 
@@ -128,12 +135,12 @@ $fh=*STDOUT unless $openFile;
 
 print $fh "length\tbase\tsample\tCount\n" if $opts{'d'};
 foreach my $l(sort(keys(%{$data}))){
-	foreach my $m(sort(keys(%{$data->{$l}}))){
-		foreach my $sample(sort(keys(%{$data->{$l}->{$m}}))){
-			print $fh "$l\t$m\t$sample\t",$data->{$l}->{$m}->{$sample},"\n";
-		}
-	}
-	
+    foreach my $m(sort(keys(%{$data->{$l}}))){
+        foreach my $sample(sort(keys(%{$data->{$l}->{$m}}))){
+            print $fh "$l\t$m\t$sample\t",$data->{$l}->{$m}->{$sample},"\n";
+        }
+    }
+    
 }
 close $fh if $openFile;
 
